@@ -1,0 +1,56 @@
+name: Wind Lease and Survey Intersections Update
+
+on:
+  schedule:
+    # 3:15 AM EST every Monday 
+    - cron: '15 8 * * 1'
+  workflow_dispatch: # Allows manual run for testing
+
+permissions:
+  contents: write
+
+jobs:
+  update-offshore-infrastructure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          python-version: "3.11"
+          channels: conda-forge, esri
+          activate-environment: arcgis-api
+          auto-activate-base: false
+
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: |
+          # 1. Install EVERYTHING spatial through conda-forge first
+          # This ensures GEOS, GDAL, and PROJ are all synced.
+          conda install -c conda-forge \
+            gdal=3.10.0 \
+            geopandas \
+            fiona \
+            pyproj \
+            shapely \
+            pandas \
+            numpy \
+            -y --quiet
+
+          # 2. Install arcgis via the esri channel if possible, or pip last.
+          # Note: 'arcgis' on conda-forge is the most stable for Linux runners.
+          conda install -c conda-forge arcgis -y --quiet
+
+      - name: Execute Python script
+        shell: bash -l {0}
+        run: python python/update_survey_lease_intersections_fc.py
+        env:
+          PYTHONDONTWRITEBYTECODE: 1
+          ARCGIS_URL: ${{ secrets.ARCGIS_URL }}
+          ARCGIS_USERNAME: ${{ secrets.ARCGIS_USERNAME }}
+          ARCGIS_PASSWORD: ${{ secrets.ARCGIS_PASSWORD }}
+          TARGET_ID: ${{ secrets.TARGET_ID }}
